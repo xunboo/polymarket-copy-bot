@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polymarket CopyBot</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --card-bg: #161b22;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --accent: #58a6ff;
+            --border: #30363d;
+            --success: #238636;
+            --danger: #da3633;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            margin-bottom: 3rem;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin: 0;
+            background: linear-gradient(90deg, #58a6ff, #a371f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        /* Tabs/Dropdown Style */
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        select {
+            background-color: var(--card-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        select:hover, select:focus {
+            border-color: var(--accent);
+            outline: none;
+        }
+
+        /* Grid Layouts */
+        .user-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-bottom: 3rem;
+        }
+
+        /* Leaderboard Table */
+        .leaderboard-table-container {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background-color: rgba(255,255,255,0.02);
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background-color: rgba(255,255,255,0.02);
+        }
+
+        /* Components */
+        .user-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .user-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            border-color: var(--accent);
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #238636, #2ea043);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            font-size: 0.9rem;
+            margin-right: 0.75rem;
+            flex-shrink: 0;
+        }
+        
+        .avatar.rank-1 { background: linear-gradient(135deg, #FFD700, #FDB931); color: #8a6d1c; }
+        .avatar.rank-2 { background: linear-gradient(135deg, #E0E0E0, #BDBDBD); color: #555; }
+        .avatar.rank-3 { background: linear-gradient(135deg, #CD7F32, #A0522D); }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+        }
+
+        .username {
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+
+        .address-small {
+            font-family: 'SF Mono', 'Roboto Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .pnl-positive { color: #3fb950; }
+        .pnl-negative { color: #f85149; }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 10px;
+            background-color: rgba(56, 139, 253, 0.15);
+            color: #58a6ff;
+            font-size: 0.7rem;
+            border: 1px solid rgba(56, 139, 253, 0.4);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+        
+        .copy-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        
+        .copy-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Polymarket CopyBot</h1>
+            <p class="subtitle">Automated Trading Dashboard</p>
+        </header>
+        
+        <!-- Configured Users -->
+        <div class="section-header">
+            <h2>Watched Users</h2>
+            <span id="users-count" class="badge">0</span>
+        </div>
+        <div id="user-list" class="user-grid">
+            <div class="loading">Loading configured users...</div>
+        </div>
+
+        <!-- Leaderboard -->
+        <div class="section-header">
+            <h2>Top Traders Leaderboard</h2>
+            <div class="controls">
+                <select id="time-period" onchange="fetchLeaderboard()">
+                    <option value="DAY">Day</option>
+                    <option value="WEEK">Week</option>
+                    <option value="MONTH" selected>Month</option>
+                    <option value="ALL">All Time</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="leaderboard-table-container">
+            <table id="leaderboard-table">
+                <thead>
+                    <tr>
+                        <th width="60">Rank</th>
+                        <th>User</th>
+                        <th>Volume</th>
+                        <th style="text-align: right;">P&L</th>
+                        <th width="80">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body">
+                    <tr><td colspan="5" class="loading">Loading leaderboard...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // --- Conf Users ---
+        async function fetchConfiguredUsers() {
+            try {
+                const response = await fetch('/api/users');
+                const users = await response.json();
+                
+                document.getElementById('users-count').textContent = users.length;
+                const listContainer = document.getElementById('user-list');
+                
+                if (users.length === 0) {
+                    listContainer.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary);">No users configured in AppConfig.</div>';
+                    return;
+                }
+
+                listContainer.innerHTML = users.map((user, index) => {
+                    const shortAddress = user.length > 10 ? `${user.substring(0, 6)}...${user.substring(user.length - 4)}` : user;
+                    return `
+                        <div class="user-card">
+                            <div class="user-info">
+                                <div class="avatar">${index + 1}</div>
+                                <div>
+                                    <div class="address-small" title="${user}">${shortAddress}</div>
+                                </div>
+                            </div>
+                            <span class="badge">Active</span>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error fetching users:', error);
+                document.getElementById('user-list').innerHTML = '<div style="color: var(--danger);">Failed to load users.</div>';
+            }
+        }
+
+        // --- Leaderboard ---
+        async function fetchLeaderboard() {
+            const timePeriod = document.getElementById('time-period').value;
+            const tbody = document.getElementById('leaderboard-body');
+            
+            tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading ' + timePeriod.toLowerCase() + ' leaderboard...</td></tr>';
+
+            try {
+                const response = await fetch(`/api/leaderboard?timePeriod=${timePeriod}`);
+                const users = await response.json();
+
+                if (users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="loading">No data available.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = users.map((u) => {
+                    const pnlClass = u.pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
+                    const pnlFormatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(u.pnl);
+                    const volFormatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(u.vol);
+                    const displayName = u.userName || u.xUsername || `User ${u.rank}`;
+                    const shortAddr = u.proxyWallet ? `${u.proxyWallet.substring(0, 6)}...${u.proxyWallet.substring(u.proxyWallet.length - 4)}` : 'N/A';
+                    const fullAddr = u.proxyWallet || '';
+
+                    return `
+                        <tr>
+                            <td>
+                                <div class="avatar rank-${u.rank}" style="width: 28px; height: 28px; font-size: 0.8rem;">${u.rank}</div>
+                            </td>
+                            <td>
+                                <div style="font-weight: 500;">${displayName}</div>
+                                <div class="address-small">${shortAddr}</div>
+                            </td>
+                            <td>${volFormatted}</td>
+                            <td class="${pnlClass}" style="text-align: right; font-weight: 600;">${pnlFormatted}</td>
+                            <td>
+                                <button class="copy-btn" onclick="copyToClipboard('${fullAddr}')" title="Copy Address">Copy</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error('Error fetching leaderboard:', error);
+                tbody.innerHTML = '<tr><td colspan="5" class="loading" style="color: var(--danger);">Failed to load leaderboard.</td></tr>';
+            }
+        }
+
+        function copyToClipboard(text) {
+            if (!text) return;
+            navigator.clipboard.writeText(text).then(() => {
+                // Could show a toast here
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchConfiguredUsers();
+            fetchLeaderboard();
+        });
+    </script>
+</body>
+</html>

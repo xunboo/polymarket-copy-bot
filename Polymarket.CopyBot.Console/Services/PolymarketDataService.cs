@@ -8,6 +8,7 @@ namespace Polymarket.CopyBot.Console.Services
     {
         Task<List<T>> GetActivity<T>(string userAddress, string type = "TRADE");
         Task<List<T>> GetPositions<T>(string userAddress);
+        Task<List<Polymarket.CopyBot.Console.Models.LeaderboardUser>> GetLeaderboardAsync(string timePeriod = "MONTH");
     }
 
     public class PolymarketDataService : IPolymarketDataService
@@ -35,6 +36,25 @@ namespace Polymarket.CopyBot.Console.Services
         public async Task<List<T>> GetPositions<T>(string userAddress)
         {
             return await FetchData<List<T>>($"positions?user={userAddress}");
+        }
+
+        public async Task<List<Polymarket.CopyBot.Console.Models.LeaderboardUser>> GetLeaderboardAsync(string timePeriod = "MONTH")
+        {
+            var allUsers = new List<Polymarket.CopyBot.Console.Models.LeaderboardUser>();
+            
+            // Allow default if null/empty
+            if (string.IsNullOrWhiteSpace(timePeriod)) timePeriod = "MONTH";
+
+            // Fetch top 100 (limit 50 per page)
+            // Page 1: Offset 0
+            var page1 = await FetchData<List<Polymarket.CopyBot.Console.Models.LeaderboardUser>>($"v1/leaderboard?limit=50&offset=0&timePeriod={timePeriod}");
+            if (page1 != null) allUsers.AddRange(page1);
+
+            // Page 2: Offset 50
+            var page2 = await FetchData<List<Polymarket.CopyBot.Console.Models.LeaderboardUser>>($"v1/leaderboard?limit=50&offset=50&timePeriod={timePeriod}");
+            if (page2 != null) allUsers.AddRange(page2);
+
+            return allUsers;
         }
 
         private async Task<TResult> FetchData<TResult>(string endpoint) where TResult : new()

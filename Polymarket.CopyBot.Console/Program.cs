@@ -55,6 +55,7 @@ namespace Polymarket.CopyBot.Console
                     // Hosted Services
                     services.AddHostedService<TradeMonitorService>();
                     services.AddHostedService<TradeExecutorService>();
+                    services.AddHostedService<UsersWebService>();
                 });
     }
 }

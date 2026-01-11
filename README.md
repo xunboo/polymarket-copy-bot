@@ -78,6 +78,18 @@ cd Polymarket.CopyBot.Console
 dotnet run
 ```
 
+### Web Dashboard
+
+Once the bot is running, you can access the **Web Dashboard** at:
+[http://localhost:5000](http://localhost:5000)
+
+**Features:**
+*   **Watched Users**: View the list of users currently configured in your `.env`.
+*   **Leaderboard**: View the top 100 Polymarket traders.
+    *   Filter by **Day**, **Week**, **Month**, or **All Time**.
+    *   View P&L, Volume, and Rank.
+    *   Easily copy proxy wallet addresses.
+
 ## Features
 
 -   **Multi-Trader Support**: Track and copy trades from multiple traders simultaneously.
