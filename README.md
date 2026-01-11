@@ -1,0 +1,106 @@
+# Polymarket Copy Bot (.NET)
+
+> A high-performance automated copy trading bot for Polymarket, built on **.NET 8**. It mirrors trades from top performers with intelligent position sizing and real-time execution.
+
+## Overview
+
+The Polymarket Copy Trading Bot automatically replicates trades from successful Polymarket traders to your wallet. It's built as a **.NET Worker Service** to ensure robust background execution and low-latency performance.
+
+### How It Works
+
+1.  **Select Traders** - Choose top performers from the [Polymarket leaderboard](https://polymarket.com/leaderboard).
+2.  **Monitor Activity** - The bot polls the Polymarket Data API to detect new positions from selected traders.
+3.  **Calculate Size** - Automatically scales trades based on your configured strategy (Percentage, Fixed, or Adaptive).
+4.  **Execute Orders** - Places matching orders on the Polymarket CLOB (Central Limit Order Book) using your wallet.
+5.  **Track Performance** - Maintains trade history and position tracking in MongoDB.
+
+## Quick Start
+
+### Prerequisites
+
+-   [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+-   MongoDB database ([MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register) free tier works)
+-   Polygon wallet with **USDC** (for betting) and **POL** (MATIC) (for gas)
+-   RPC endpoint ([Infura](https://infura.io) or [Alchemy](https://www.alchemy.com))
+
+### Installation
+
+#### 1. Clone repository
+```bash
+git clone https://github.com/MahmoudKandee/polymarket-copy-bot-net
+cd polymarket-copy-bot-net
+```
+
+#### 2. Restore Dependencies
+```bash
+dotnet restore
+```
+
+#### 3. Configure Environment
+Create a `.env` file in the root of the `Polymarket.CopyBot.Console` project (or copy from example if available).
+
+```bash
+# Traders to copy (addresses)
+USER_ADDRESSES=["0x6a72f61820b26b1fe4d956e17b6dc2a1ea3033ee"]
+
+# Your trading wallet
+PROXY_WALLET=your_polygon_wallet_address
+PRIVATE_KEY=your_private_key_without_0x_prefix
+
+# Setup
+MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/database?retryWrites=true&w=majority
+RPC_URL=https://polygon-mainnet.infura.io/v3/YOUR_PROJECT_ID
+
+# Bot Configuration
+CLOB_HTTP_URL=https://clob.polymarket.com/
+CLOB_WS_URL=wss://ws-subscriptions-clob.polymarket.com/ws
+USDC_CONTRACT_ADDRESS=0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174
+
+# Strategy Settings
+TRADE_MULTIPLIER=1.0
+COPY_PERCENTAGE=10
+MAX_ORDER_SIZE_USD=50
+MIN_ORDER_SIZE_USD=5
+```
+
+### Build and Run
+
+#### Build the Solution
+```bash
+dotnet build
+```
+
+#### Run the Bot
+Navigate to the console project directory and run:
+
+```bash
+cd Polymarket.CopyBot.Console
+dotnet run
+```
+
+## Features
+
+-   **Multi-Trader Support**: Track and copy trades from multiple traders simultaneously.
+-   **Smart Strategies**:
+    -   **Percentage**: Copy a % of your balance.
+    -   **Fixed**: Copy a fixed USD amount per trade.
+    -   **Adaptive**: Scale based on the trader's conviction.
+-   **Safety Limits**: Configurable Max/Min order sizes and position limits.
+-   **Real-time Execution**: Fast polling and execution using .NET's high-performance `HttpClient`.
+-   **MongoDB Integration**: Persistent storage of all trades and positions.
+-   **Type Safety**: Fully typed C# codebase for reliability and easier maintenance.
+
+## Project Structure
+
+-   `Polymarket.CopyBot.sln`: Solution file.
+-   **Polymarket.CopyBot.Console**: The main executable (Worker Service).
+    -   `Configuration/`: App settings and strategy config.
+    -   `Services/`: Core logic (`TradeMonitor`, `TradeExecutor`, `CopyStrategy`).
+    -   `Repositories/`: MongoDB data access modules.
+-   **Polymarket.ClobClient**: C# Library for interacting with Polymarket's CLOB API (EIP-712 signing, order management).
+
+## License
+
+MIT License.
+
+**Disclaimer:** This software is for educational purposes only. Trading involves risk of loss.
