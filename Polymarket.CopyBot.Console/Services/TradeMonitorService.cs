@@ -1,4 +1,4 @@
-using MongoDB.Driver;
+
 using Polymarket.CopyBot.Console.Configuration;
 using Polymarket.CopyBot.Console.Models;
 using Polymarket.CopyBot.Console.Repositories;
@@ -11,21 +11,18 @@ namespace Polymarket.CopyBot.Console.Services
     {
         private readonly AppConfig _config;
         private readonly IPolymarketDataService _dataService;
-        private readonly IUserActivityRepository _activityRepo;
-        private readonly IUserPositionRepository _positionRepo;
+        private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<TradeMonitorService> _logger;
 
         public TradeMonitorService(
             AppConfig config, 
             IPolymarketDataService dataService,
-            IUserActivityRepository activityRepo,
-            IUserPositionRepository positionRepo,
+            IServiceScopeFactory scopeFactory,
             ILogger<TradeMonitorService> logger)
         {
             _config = config;
             _dataService = dataService;
-            _activityRepo = activityRepo;
-            _positionRepo = positionRepo;
+            _scopeFactory = scopeFactory;
             _logger = logger;
         }
 
@@ -47,19 +44,15 @@ namespace Polymarket.CopyBot.Console.Services
 
         private async Task ProcessHistoricalTrades()
         {
-            _logger.LogInformation("Processing historical trades...");
-            foreach (var address in _config.UserAddresses)
+            using (var scope = _scopeFactory.CreateScope())
             {
-                var collection = _activityRepo.GetCollection(address);
-                var filter = Builders<UserActivity>.Filter.Eq(x => x.Bot, false);
-                var update = Builders<UserActivity>.Update
-                    .Set(x => x.Bot, true)
-                    .Set(x => x.BotExecutedTime, 999);
-
-                var result = await collection.UpdateManyAsync(filter, update);
-                if (result.ModifiedCount > 0)
+                 var activityRepo = scope.ServiceProvider.GetRequiredService<IUserActivityRepository>();
+                 
+                _logger.LogInformation("Processing historical trades...");
+                foreach (var address in _config.UserAddresses)
                 {
-                    _logger.LogInformation("Marked {Count} historical trades as processed for {Address}", result.ModifiedCount, address);
+                    await activityRepo.MarkAllHistoricalAsProcessedAsync(address);
+                    _logger.LogInformation("Marked historical trades as processed for {Address}", address);
                 }
             }
         }
@@ -72,60 +65,43 @@ namespace Polymarket.CopyBot.Console.Services
                 {
                     // Fetch Activity
                     var activities = await _dataService.GetActivity<UserActivity>(address);
-                    if (activities != null && activities.Count > 0)
+                    
+                    using (var scope = _scopeFactory.CreateScope())
                     {
-                        var collection = _activityRepo.GetCollection(address);
-                        
-                        foreach (var activity in activities)
+                        var activityRepo = scope.ServiceProvider.GetRequiredService<IUserActivityRepository>();
+                        var positionRepo = scope.ServiceProvider.GetRequiredService<IUserPositionRepository>();
+
+                        if (activities != null && activities.Count > 0)
                         {
-                            if (activity.Timestamp < _config.TooOldTimestamp) continue;
-
-                            // Check if exists
-                            var exists = await collection.Find(x => x.TransactionHash == activity.TransactionHash).AnyAsync();
-                            if (exists) continue;
-
-                            activity.Bot = false;
-                            activity.BotExecutedTime = 0;
-                            // Ensure Id is null so Mongo generates it
-                            activity.Id = null;
-
-                            await collection.InsertOneAsync(activity);
-                            _logger.LogInformation("New trade detected for {Address}: {Hash}", address, activity.TransactionHash);
-                        }
-                    }
-
-                    // Fetch Positions
-                    var positions = await _dataService.GetPositions<UserPosition>(address);
-                    if (positions != null && positions.Count > 0)
-                    {
-                        var collection = _positionRepo.GetCollection(address);
-                        
-                        foreach (var pos in positions)
-                        {
-                            var filter = Builders<UserPosition>.Filter.And(
-                                Builders<UserPosition>.Filter.Eq(x => x.Asset, pos.Asset),
-                                Builders<UserPosition>.Filter.Eq(x => x.ConditionId, pos.ConditionId)
-                            );
-                            
-                            // Upsert
-                            pos.Id = null; // Ensure ID is not set for upsert unless we want to replace
-                            // Actually for upsert we usually use ReplaceOne with IsUpsert = true
-                            // But we need to handle ID carefully. 
-                            // simpler: FindOne. If exists, update fields. If not, insert.
-                            // Or ReplaceOne with upsert.
-                            
-                            // Let's use ReplaceOne with Upsert, but we need to ignore ID in replacement 
-                            // or fetch the ID if it exists.
-                            
-                            var existing = await collection.Find(filter).FirstOrDefaultAsync();
-                            if (existing != null)
+                            foreach (var activity in activities)
                             {
-                                pos.Id = existing.Id;
-                                await collection.ReplaceOneAsync(filter, pos);
+                                if (activity.Timestamp < _config.TooOldTimestamp) continue;
+
+                                // Check if exists
+                                var exists = await activityRepo.GetByTxHashAsync(address, activity.TransactionHash ?? "");
+                                if (exists != null) continue;
+
+                                activity.Bot = false;
+                                activity.BotExecutedTime = 0;
+                                activity.OwnerAddress = address; // Set partition key
+                                activity.Id = Guid.NewGuid().ToString(); // Generate ID
+
+                                await activityRepo.AddAsync(activity);
+                                _logger.LogInformation("New trade detected for {Address}: {Hash}", address, activity.TransactionHash);
                             }
-                            else
+                        }
+
+                        // Fetch Positions
+                        var positions = await _dataService.GetPositions<UserPosition>(address);
+                        if (positions != null && positions.Count > 0)
+                        {
+                            foreach (var pos in positions)
                             {
-                                await collection.InsertOneAsync(pos);
+                                pos.OwnerAddress = address; // Set partition key
+                                // Id managed by repo upsert logic if new, or preserved
+                                if (string.IsNullOrEmpty(pos.Id)) pos.Id = Guid.NewGuid().ToString();
+
+                                await positionRepo.UpsertAsync(pos);
                             }
                         }
                     }

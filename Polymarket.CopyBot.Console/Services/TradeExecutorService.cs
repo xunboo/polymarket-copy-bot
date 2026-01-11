@@ -5,7 +5,7 @@ using Polymarket.CopyBot.Console.Models;
 using Polymarket.CopyBot.Console.Repositories;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using MongoDB.Driver;
+
 using System.Numerics;
 
 namespace Polymarket.CopyBot.Console.Services
@@ -14,25 +14,24 @@ namespace Polymarket.CopyBot.Console.Services
     {
         private readonly AppConfig _config;
         private readonly PolymarketClient _clobClient;
-        private readonly PolymarketDataService _dataService; // For checking balances/positions
+        private readonly PolymarketDataService _dataService;
         private readonly CopyStrategyService _strategyService;
-        private readonly IUserActivityRepository _activityRepo;
-        private readonly IUserPositionRepository _positionRepo;
+        private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<TradeExecutorService> _logger;
+
+        private bool _clientReady = false;
 
         public TradeExecutorService(
             AppConfig config,
             PolymarketDataService dataService,
             CopyStrategyService strategyService,
-            IUserActivityRepository activityRepo,
-            IUserPositionRepository positionRepo,
+            IServiceScopeFactory scopeFactory,
             ILogger<TradeExecutorService> logger)
         {
             _config = config;
             _dataService = dataService;
             _strategyService = strategyService;
-            _activityRepo = activityRepo;
-            _positionRepo = positionRepo;
+            _scopeFactory = scopeFactory;
             _logger = logger;
 
             // Initialize CLOB Client (Polygon Mainnet ChainID 137)
@@ -45,13 +44,15 @@ namespace Polymarket.CopyBot.Console.Services
             try 
             {
                 // Derive API Keys on startup
+                // If keys are invalid, we catch it but don't crash, just can't trade.
                 var creds = await _clobClient.DeriveApiKey();
+                _clientReady = true;
                 _logger.LogInformation("CLOB Client API Keys derived.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to derive API keys. Check private key.");
-                throw;
+                _logger.LogError(ex, "Failed to derive API keys. Trading execution will be DISABLED.");
+                // Do not throw, keep service alive for gathering data at least
             }
             
             await base.StartAsync(cancellationToken);
@@ -65,6 +66,11 @@ namespace Polymarket.CopyBot.Console.Services
             {
                 try
                 {
+                     // Only process if client is ready (keys derived) OR we want to just mark things as failed?
+                     // If we don't process, queue grows.
+                     // But if keys invalid, we can monitor but not trade.
+                     // Let's rely on _clientReady inside execute? 
+                     // We still need to process DB updates so we can mark things as skipped/failed maybe?
                     await ProcessNewTrades();
                 }
                 catch (Exception ex)
@@ -80,39 +86,46 @@ namespace Polymarket.CopyBot.Console.Services
 
         private async Task ProcessNewTrades()
         {
-            foreach (var address in _config.UserAddresses)
+            using (var scope = _scopeFactory.CreateScope())
             {
-                var collection = _activityRepo.GetCollection(address);
+                var activityRepo = scope.ServiceProvider.GetRequiredService<IUserActivityRepository>();
                 
-                // Find trades not yet processed by bot (Bot: false) and verified valid trade (Type: TRADE)
-                // TS: { $and: [{ type: 'TRADE' }, { bot: false }, { botExcutedTime: 0 }] }
-                var filter = Builders<UserActivity>.Filter.And(
-                    Builders<UserActivity>.Filter.Eq(x => x.Type, "TRADE"),
-                    Builders<UserActivity>.Filter.Eq(x => x.Bot, false),
-                    Builders<UserActivity>.Filter.Eq(x => x.BotExecutedTime, 0)
-                );
-
-                var trades = await collection.Find(filter).ToListAsync();
-
-                foreach (var trade in trades)
+                foreach (var address in _config.UserAddresses)
                 {
-                    // Mark as processing immediately (BotExecutedTime = 1)
-                    var update = Builders<UserActivity>.Update.Set(x => x.BotExecutedTime, 1);
-                    await collection.UpdateOneAsync(x => x.Id == trade.Id, update);
+                    var trades = await activityRepo.GetUnprocessedAsync(address);
 
-                    await ExecuteTrade(trade, address);
+                    foreach (var trade in trades)
+                    {
+                        // Mark as processing immediately (BotExecutedTime = 1)
+                        trade.BotExecutedTime = 1;
+                        await activityRepo.UpdateAsync(trade);
+
+                        if (!_clientReady)
+                        {
+                            _logger.LogWarning("CLOB Client not ready. Marking trade {Id} as failed/skipped.", trade.Id);
+                            // Mark as failed/skipped (999 or error code)
+                            trade.Bot = true;
+                            trade.BotExecutedTime = 0; // 0 = processed/skipped?
+                            await activityRepo.UpdateAsync(trade);
+                            continue;
+                        }
+
+                        await ExecuteTrade(trade, address, scope);
+                    }
                 }
             }
         }
 
-        private async Task ExecuteTrade(UserActivity trade, string userAddress)
+        private async Task ExecuteTrade(UserActivity trade, string userAddress, IServiceScope scope)
         {
             _logger.LogInformation("Processing trade from {Address}: {Side} {Asset}", userAddress, trade.Side, trade.Asset);
+            
+             var activityRepo = scope.ServiceProvider.GetRequiredService<IUserActivityRepository>();
 
             if (_config.PreviewMode)
             {
                 _logger.LogInformation("PREVIEW MODE: Skipping execution.");
-                await MarkTradeProcessed(userAddress, trade.Id, 0); // 0 means success/processed
+                await MarkTradeProcessed(activityRepo, userAddress, trade.Id, 0); // 0 means success/processed
                 return;
             }
 
@@ -120,37 +133,30 @@ namespace Polymarket.CopyBot.Console.Services
             {
                 if (trade.Side?.ToUpper() == "BUY")
                 {
-                    await ExecuteBuy(trade, userAddress);
+                    await ExecuteBuy(trade, userAddress, scope);
                 }
                 else if (trade.Side?.ToUpper() == "SELL")
                 {
-                    await ExecuteSell(trade, userAddress);
+                    await ExecuteSell(trade, userAddress, scope);
                 }
                 else 
                 {
-                    // Merge or others? 
-                    // TS supports 'merge' condition, logic says trade.side might be 'SELL' but condition 'merge'.
-                    // Need to check specific logic. TS 'postOrder' checks `condition`.
-                    // trade.ConditionId is not the condition string (buy/sell/merge).
-                    // In TS tradeExecutor calls postOrder with 'buy' or 'sell' based on trade.side.
-                    // But postOrder checks `condition` arg.
-                    // In Executor: postOrder(..., trade.side === 'BUY' ? 'buy' : 'sell', ...)
-                    // So we stick to Side.
-                    
                      _logger.LogWarning("Unknown side: {Side}", trade.Side);
-                     await MarkTradeProcessed(userAddress, trade.Id, 999);
+                     await MarkTradeProcessed(activityRepo, userAddress, trade.Id, 999);
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to execute trade");
                 // Retry logic is inside Buy/Sell usually, but if exception bubbles up:
-                await MarkTradeProcessed(userAddress, trade.Id, 999); 
+                await MarkTradeProcessed(activityRepo, userAddress, trade.Id, 999); 
             }
         }
 
-        private async Task ExecuteBuy(UserActivity trade, string userAddress)
+        private async Task ExecuteBuy(UserActivity trade, string userAddress, IServiceScope scope)
         {
+            var activityRepo = scope.ServiceProvider.GetRequiredService<IUserActivityRepository>();
+            
             // 1. Get Balances (TODO: Use real balance check)
             double myBalance = 1000.0; 
              
@@ -169,7 +175,7 @@ namespace Polymarket.CopyBot.Console.Services
              if (calc.FinalAmount == 0)
              {
                  _logger.LogWarning("Skipping trade: {Reasoning}", calc.Reasoning);
-                 await MarkTradeProcessed(userAddress, trade.Id, 0);
+                 await MarkTradeProcessed(activityRepo, userAddress, trade.Id, 0);
                  return;
              }
 
@@ -221,8 +227,6 @@ namespace Polymarket.CopyBot.Console.Services
                         Side = Side.Buy,
                         Size = (decimal)sizeInTokens,
                         Price = (decimal)price,
-                        // Type = OrderType.Fok // UserOrder doesn't have Type, maybe PostOrder takes arg usually or UserMarketOrder
-                        // Checking ClobClient: PostOrder(UserOrder order, OrderType orderType = OrderType.Gtc)
                     };
 
                     _logger.LogInformation("Posting BUY: {Size} tokens @ {Price} (${Amount})", sizeInTokens, price, spendAmount);
@@ -242,11 +246,13 @@ namespace Polymarket.CopyBot.Console.Services
                  }
              }
 
-             await MarkTradeProcessed(userAddress, trade.Id, success ? 999 : 0);
+             await MarkTradeProcessed(activityRepo, userAddress, trade.Id, success ? 999 : 0);
         }
 
-        private async Task ExecuteSell(UserActivity trade, string userAddress)
+        private async Task ExecuteSell(UserActivity trade, string userAddress, IServiceScope scope)
         {
+             var activityRepo = scope.ServiceProvider.GetRequiredService<IUserActivityRepository>();
+             
              // Check if we hold position
              // Since we don't have our positions synced to DB (only traders), we need to fetch live.
              var myPositions = await _dataService.GetPositions<UserPosition>(_config.ProxyWallet);
@@ -255,13 +261,11 @@ namespace Polymarket.CopyBot.Console.Services
              if (myPos == null || (myPos.Size ?? 0) <= 0)
              {
                  _logger.LogWarning("No position to sell.");
-                 await MarkTradeProcessed(userAddress, trade.Id, 0);
+                 await MarkTradeProcessed(activityRepo, userAddress, trade.Id, 0);
                  return;
              }
 
              // Calculate Sell Amount (Simplified: Sell same %)
-             // For now just sell 100% if trader sells
-             // Or stub
              double sellAmount = myPos.Size ?? 0;
              
              // Get Bid Price
@@ -284,30 +288,31 @@ namespace Polymarket.CopyBot.Console.Services
 
                     _logger.LogInformation("Posting SELL: {Size} tokens @ {Price}", order.Size, order.Price);
                     await _clobClient.PostOrder(order, OrderType.Fok);
-                    await MarkTradeProcessed(userAddress, trade.Id, 999);
+                    await MarkTradeProcessed(activityRepo, userAddress, trade.Id, 999);
                 }
                 else 
                 {
                     _logger.LogWarning("No Bids");
-                    await MarkTradeProcessed(userAddress, trade.Id, 0); // Skip
+                    await MarkTradeProcessed(activityRepo, userAddress, trade.Id, 0); // Skip
                 }
              }
              catch (Exception ex)
              {
                  _logger.LogError(ex, "Sell failed");
-                 await MarkTradeProcessed(userAddress, trade.Id, 0); // Skip on error
+                 await MarkTradeProcessed(activityRepo, userAddress, trade.Id, 0); // Skip on error
              }
         }
 
-        private async Task MarkTradeProcessed(string userAddress, string? tradeId, int code)
+        private async Task MarkTradeProcessed(IUserActivityRepository activityRepo, string userAddress, string? tradeId, int code)
         {
             if (string.IsNullOrEmpty(tradeId)) return;
-            var collection = _activityRepo.GetCollection(userAddress);
-            var update = Builders<UserActivity>.Update
-                .Set(x => x.Bot, true)
-                .Set(x => x.BotExecutedTime, code); // using code to store result/retry count
-                
-            await collection.UpdateOneAsync(x => x.Id == tradeId, update);
+            var trade = await activityRepo.GetByIdAsync(tradeId);
+            if (trade != null)
+            {
+                trade.Bot = true;
+                trade.BotExecutedTime = code;
+                await activityRepo.UpdateAsync(trade);
+            }
         }
     }
 }

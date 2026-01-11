@@ -22,7 +22,7 @@ namespace Polymarket.CopyBot.Console.Configuration
         public int TradeAggregationWindowSeconds { get; set; } = 300;
         public bool PreviewMode { get; set; } = false;
         
-        public string MongoUri { get; set; } = string.Empty;
+        public string SqliteConnectionString { get; set; } = "Data Source=copybot.db";
         public string RpcUrl { get; set; } = string.Empty;
         public string UsdcContractAddress { get; set; } = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
 
@@ -61,7 +61,7 @@ namespace Polymarket.CopyBot.Console.Configuration
             
             config.TradeAggregationEnabled = GetEnv("TRADE_AGGREGATION_ENABLED", "false").ToLower() == "true";
             
-            config.MongoUri = GetEnv("MONGO_URI");
+            config.SqliteConnectionString = GetEnv("SQLITE_CONNECTION", "Data Source=copybot.db");
             config.RpcUrl = GetEnv("RPC_URL");
 
             // Load Copy Strategy

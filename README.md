@@ -19,7 +19,7 @@ The Polymarket Copy Trading Bot automatically replicates trades from successful 
 ### Prerequisites
 
 -   [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
--   MongoDB database ([MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register) free tier works)
+-   **No Database Server Required** (Uses SQLite)
 -   Polygon wallet with **USDC** (for betting) and **POL** (MATIC) (for gas)
 -   RPC endpoint ([Infura](https://infura.io) or [Alchemy](https://www.alchemy.com))
 
@@ -48,7 +48,7 @@ PROXY_WALLET=your_polygon_wallet_address
 PRIVATE_KEY=your_private_key_without_0x_prefix
 
 # Setup
-MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/database?retryWrites=true&w=majority
+# Optional: SQLITE_CONNECTION=Data Source=copybot.db
 RPC_URL=https://polygon-mainnet.infura.io/v3/YOUR_PROJECT_ID
 
 # Bot Configuration
@@ -87,7 +87,7 @@ dotnet run
     -   **Adaptive**: Scale based on the trader's conviction.
 -   **Safety Limits**: Configurable Max/Min order sizes and position limits.
 -   **Real-time Execution**: Fast polling and execution using .NET's high-performance `HttpClient`.
--   **MongoDB Integration**: Persistent storage of all trades and positions.
+-   **SQLite Integration**: Local, self-contained database for persistent storage (no server required).
 -   **Type Safety**: Fully typed C# codebase for reliability and easier maintenance.
 
 ## Project Structure
@@ -96,7 +96,7 @@ dotnet run
 -   **Polymarket.CopyBot.Console**: The main executable (Worker Service).
     -   `Configuration/`: App settings and strategy config.
     -   `Services/`: Core logic (`TradeMonitor`, `TradeExecutor`, `CopyStrategy`).
-    -   `Repositories/`: MongoDB data access modules.
+    -   `Repositories/`: SQLite data access modules.
 -   **Polymarket.ClobClient**: C# Library for interacting with Polymarket's CLOB API (EIP-712 signing, order management).
 
 ## License

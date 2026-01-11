@@ -1,13 +1,12 @@
-using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
 
 namespace Polymarket.CopyBot.Console.Models
 {
     public class UserActivity
     {
-        [BsonId]
-        [BsonRepresentation(BsonType.ObjectId)]
-        public string? Id { get; set; }
+        [System.ComponentModel.DataAnnotations.Key]
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+
+        public string OwnerAddress { get; set; } = string.Empty;
 
         public string? ProxyWallet { get; set; }
         public long? Timestamp { get; set; }
