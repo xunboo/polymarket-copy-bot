@@ -1,6 +1,7 @@
 
 using Polymarket.CopyBot.Console.Configuration;
 using Polymarket.CopyBot.Console.Models;
+using Polymarket.CopyBot.Console.Services;
 using Polymarket.CopyBot.Console.Repositories;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -28,7 +29,7 @@ namespace Polymarket.CopyBot.Console.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("Trade Monitor starting for {Count} users...", _config.UserAddresses.Length);
+            _logger.LogInformation("Trade Monitor starting...");
 
             // First run: Mark historical trades as processed
             await ProcessHistoricalTrades();
@@ -47,9 +48,13 @@ namespace Polymarket.CopyBot.Console.Services
             using (var scope = _scopeFactory.CreateScope())
             {
                  var activityRepo = scope.ServiceProvider.GetRequiredService<IUserActivityRepository>();
+                 var monitorService = scope.ServiceProvider.GetRequiredService<IMonitorUserService>();
                  
-                _logger.LogInformation("Processing historical trades...");
-                foreach (var address in _config.UserAddresses)
+                 var users = await monitorService.GetMonitoredUsersAsync();
+                 var addresses = users.Select(u => u.Address).ToList();
+
+                _logger.LogInformation("Processing historical trades for {Count} users...", addresses.Count);
+                foreach (var address in addresses)
                 {
                     await activityRepo.MarkAllHistoricalAsProcessedAsync(address);
                     _logger.LogInformation("Marked historical trades as processed for {Address}", address);
@@ -59,7 +64,15 @@ namespace Polymarket.CopyBot.Console.Services
 
         private async Task FetchTradeData()
         {
-            foreach (var address in _config.UserAddresses)
+            List<string> addresses;
+             using (var scope = _scopeFactory.CreateScope())
+            {
+                var monitorService = scope.ServiceProvider.GetRequiredService<IMonitorUserService>();
+                var users = await monitorService.GetMonitoredUsersAsync();
+                addresses = users.Select(u => u.Address).ToList();
+            }
+
+            foreach (var address in addresses)
             {
                 try
                 {

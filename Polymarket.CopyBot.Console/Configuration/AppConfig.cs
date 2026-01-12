@@ -4,7 +4,6 @@ namespace Polymarket.CopyBot.Console.Configuration
 {
     public class AppConfig
     {
-        public string[] UserAddresses { get; set; } = Array.Empty<string>();
         public string ProxyWallet { get; set; } = string.Empty;
         public string PrivateKey { get; set; } = string.Empty;
         public string ClobHttpUrl { get; set; } = "https://clob.polymarket.com/";
@@ -24,6 +23,8 @@ namespace Polymarket.CopyBot.Console.Configuration
         
         public string SqliteConnectionString { get; set; } = "Data Source=copybot.db";
         public string RpcUrl { get; set; } = string.Empty;
+        public bool RunTradeExecutor { get; set; } = true;
+
         public string UsdcContractAddress { get; set; } = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
 
         public static AppConfig LoadFromEnv()
@@ -32,24 +33,6 @@ namespace Polymarket.CopyBot.Console.Configuration
             
             var config = new AppConfig();
             
-            // User Addresses
-            var usersStr = GetEnv("USER_ADDRESSES", "");
-            if (usersStr.StartsWith("[") && usersStr.EndsWith("]"))
-            {
-                // Simple JSON array parsing
-                config.UserAddresses = usersStr.Trim('[', ']').Split(',')
-                    .Select(s => s.Trim().Trim('"').Trim('\''))
-                    .Where(s => !string.IsNullOrWhiteSpace(s))
-                    .ToArray();
-            }
-            else
-            {
-                config.UserAddresses = usersStr.Split(',')
-                    .Select(s => s.Trim())
-                    .Where(s => !string.IsNullOrWhiteSpace(s))
-                    .ToArray();
-            }
-
             config.ProxyWallet = GetEnv("PROXY_WALLET");
             config.PrivateKey = GetEnv("PRIVATE_KEY");
             config.ClobHttpUrl = GetEnv("CLOB_HTTP_URL", config.ClobHttpUrl);
@@ -63,6 +46,8 @@ namespace Polymarket.CopyBot.Console.Configuration
             
             config.SqliteConnectionString = GetEnv("SQLITE_CONNECTION", "Data Source=copybot.db");
             config.RpcUrl = GetEnv("RPC_URL");
+
+            config.RunTradeExecutor = GetEnv("RUN_TRADE_EXECUTOR", "true").ToLower() == "true";
 
             // Load Copy Strategy
             config.Strategy.Strategy = Enum.TryParse<CopyStrategy>(GetEnv("COPY_STRATEGY", "PERCENTAGE"), true, out var strat) 

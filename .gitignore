@@ -1,3 +1,7 @@
 Polymarket.CopyBot.Console/obj/*
 Polymarket.CopyBot.Console/bin/*
 .vs/*
+Polymarket.CopyBot.Console/log.txt
+Polymarket.CopyBot.Console/copybot.db
+Polymarket.CopyBot.Console/copybot.db-shm
+Polymarket.CopyBot.Console/copybot.db-wal

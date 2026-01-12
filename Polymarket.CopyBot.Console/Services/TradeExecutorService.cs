@@ -89,9 +89,12 @@ namespace Polymarket.CopyBot.Console.Services
             using (var scope = _scopeFactory.CreateScope())
             {
                 var activityRepo = scope.ServiceProvider.GetRequiredService<IUserActivityRepository>();
+                var monitorService = scope.ServiceProvider.GetRequiredService<IMonitorUserService>();
+                var users = await monitorService.GetMonitoredUsersAsync();
                 
-                foreach (var address in _config.UserAddresses)
+                foreach (var user in users)
                 {
+                    var address = user.Address;
                     var trades = await activityRepo.GetUnprocessedAsync(address);
 
                     foreach (var trade in trades)

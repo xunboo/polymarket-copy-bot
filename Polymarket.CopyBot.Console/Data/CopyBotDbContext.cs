@@ -8,6 +8,7 @@ namespace Polymarket.CopyBot.Console.Data
     {
         public DbSet<UserActivity> UserActivities { get; set; }
         public DbSet<UserPosition> UserPositions { get; set; }
+        public DbSet<MonitorUser> MonitorUsers { get; set; }
 
 
 

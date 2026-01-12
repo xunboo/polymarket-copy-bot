@@ -1,3 +1,4 @@
+using Serilog;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -19,6 +20,14 @@ namespace Polymarket.CopyBot.Console
             {
                 var db = scope.ServiceProvider.GetRequiredService<Polymarket.CopyBot.Console.Data.CopyBotDbContext>();
                 db.Database.EnsureCreated();
+                
+                // Manual migration hack for MonitorUsers table since EnsureCreated doesn't update existing DBs
+                db.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS ""MonitorUsers"" (
+                        ""Address"" TEXT NOT NULL CONSTRAINT ""PK_MonitorUsers"" PRIMARY KEY,
+                        ""Name"" TEXT NULL,
+                        ""CreatedAt"" TEXT NOT NULL
+                    );");
             }
 
             host.Run();
@@ -26,6 +35,11 @@ namespace Polymarket.CopyBot.Console
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
+                .UseSerilog((context, services, configuration) => configuration
+                    .MinimumLevel.Information() // Default level for everything (File gets this)
+                    .WriteTo.Console(restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Warning) // Console gets Warning+
+                    .WriteTo.File("log.txt") // File gets Information+
+                )
                 .ConfigureServices((hostContext, services) =>
                 {
                     // Load Configuration
@@ -33,11 +47,15 @@ namespace Polymarket.CopyBot.Console
                     services.AddSingleton(config);
 
                     // Logging
-                    services.AddLogging(logging =>
-                    {
-                        logging.AddConsole();
-                        logging.SetMinimumLevel(LogLevel.Information);
-                    });
+                    // Logging
+                    // Replaced by Serilog in Host.CreateDefaultBuilder chain (see below) or mapped here if using Serilog.Extensions.Logging
+                    // But typically UseSerilog is on HostBuilder.
+                    // For minimal changes let's use UseSerilog on the builder below but we are inside ConfigureServices here.
+                    // Actually, the standard way is:
+                    // Host.CreateDefaultBuilder(args).UseSerilog(...)
+                    
+                    // So we will remove this AddLogging block and add UseSerilog outside ConfigureServices.
+                    // So we will remove this AddLogging block and add UseSerilog outside ConfigureServices.
 
                     services.AddDbContext<Polymarket.CopyBot.Console.Data.CopyBotDbContext>(options =>
                         options.UseSqlite(config.SqliteConnectionString));
@@ -45,6 +63,7 @@ namespace Polymarket.CopyBot.Console
                     // Repositories
                     services.AddScoped<IUserActivityRepository, UserActivityRepository>();
                     services.AddScoped<IUserPositionRepository, UserPositionRepository>();
+                    services.AddScoped<IMonitorUserService, MonitorUserService>();
 
                     // Services
                     services.AddHttpClient<PolymarketDataService>();
@@ -54,7 +73,16 @@ namespace Polymarket.CopyBot.Console
 
                     // Hosted Services
                     services.AddHostedService<TradeMonitorService>();
-                    services.AddHostedService<TradeExecutorService>();
+                    
+                    if (config.RunTradeExecutor)
+                    {
+                        services.AddHostedService<TradeExecutorService>();
+                    }
+                    else
+                    {
+                        Log.Information("Trade Executor Disabled via Config");
+                    }
+
                     services.AddHostedService<UsersWebService>();
                 });
     }

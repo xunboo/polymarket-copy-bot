@@ -15,16 +15,19 @@ namespace Polymarket.CopyBot.Console.Services
         private readonly AppConfig _config;
         private readonly IPolymarketDataService _dataService;
         private readonly IMemoryCache _cache;
+        private readonly IServiceScopeFactory _scopeFactory;
         private WebApplication? _app;
 
         public UsersWebService(
             ILogger<UsersWebService> logger, 
             AppConfig config, 
-            IPolymarketDataService dataService)
+            IPolymarketDataService dataService,
+            IServiceScopeFactory scopeFactory)
         {
             _logger = logger;
             _config = config;
             _dataService = dataService;
+            _scopeFactory = scopeFactory;
             var cacheOptions = new MemoryCacheOptions();
             _cache = new MemoryCache(cacheOptions);
         }
@@ -45,9 +48,26 @@ namespace Polymarket.CopyBot.Console.Services
 
                 _app = builder.Build();
 
-                _app.MapGet("/api/users", () =>
+                _app.MapGet("/api/users", async () =>
                 {
-                    return Results.Json(_config.UserAddresses);
+                    using (var scope = _scopeFactory.CreateScope())
+                    {
+                        var monitorService = scope.ServiceProvider.GetRequiredService<IMonitorUserService>();
+                        var users = await monitorService.GetMonitoredUsersAsync();
+                        return Results.Json(users.Select(u => u.Address).ToList());
+                    }
+                });
+
+                _app.MapPost("/api/users", async (AddUserRequest request) =>
+                {
+                    if (string.IsNullOrWhiteSpace(request.Address)) return Results.BadRequest("Address is required");
+
+                    using (var scope = _scopeFactory.CreateScope())
+                    {
+                        var monitorService = scope.ServiceProvider.GetRequiredService<IMonitorUserService>();
+                        await monitorService.AddUserAsync(request.Address, request.Name);
+                        return Results.Ok();
+                    }
                 });
 
                 _app.MapGet("/api/leaderboard", async (HttpContext context) =>
@@ -114,5 +134,11 @@ namespace Polymarket.CopyBot.Console.Services
             }
             await base.StopAsync(cancellationToken);
         }
+    }
+
+    public class AddUserRequest
+    {
+        public string Address { get; set; } = string.Empty;
+        public string? Name { get; set; }
     }
 }

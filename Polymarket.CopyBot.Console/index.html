@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -70,7 +71,7 @@
             gap: 1rem;
             align-items: center;
         }
-        
+
         select {
             background-color: var(--card-bg);
             color: var(--text-primary);
@@ -82,7 +83,8 @@
             transition: all 0.2s;
         }
 
-        select:hover, select:focus {
+        select:hover,
+        select:focus {
             border-color: var(--accent);
             outline: none;
         }
@@ -108,14 +110,15 @@
             border-collapse: collapse;
         }
 
-        th, td {
+        th,
+        td {
             padding: 1rem;
             text-align: left;
             border-bottom: 1px solid var(--border);
         }
 
         th {
-            background-color: rgba(255,255,255,0.02);
+            background-color: rgba(255, 255, 255, 0.02);
             color: var(--text-secondary);
             font-weight: 600;
             font-size: 0.9rem;
@@ -128,7 +131,7 @@
         }
 
         tr:hover td {
-            background-color: rgba(255,255,255,0.02);
+            background-color: rgba(255, 255, 255, 0.02);
         }
 
         /* Components */
@@ -142,10 +145,10 @@
             justify-content: space-between;
             transition: transform 0.2s, box-shadow 0.2s;
         }
-        
+
         .user-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
             border-color: var(--accent);
         }
 
@@ -163,10 +166,20 @@
             margin-right: 0.75rem;
             flex-shrink: 0;
         }
-        
-        .avatar.rank-1 { background: linear-gradient(135deg, #FFD700, #FDB931); color: #8a6d1c; }
-        .avatar.rank-2 { background: linear-gradient(135deg, #E0E0E0, #BDBDBD); color: #555; }
-        .avatar.rank-3 { background: linear-gradient(135deg, #CD7F32, #A0522D); }
+
+        .avatar.rank-1 {
+            background: linear-gradient(135deg, #FFD700, #FDB931);
+            color: #8a6d1c;
+        }
+
+        .avatar.rank-2 {
+            background: linear-gradient(135deg, #E0E0E0, #BDBDBD);
+            color: #555;
+        }
+
+        .avatar.rank-3 {
+            background: linear-gradient(135deg, #CD7F32, #A0522D);
+        }
 
         .user-info {
             display: flex;
@@ -184,8 +197,13 @@
             color: var(--text-secondary);
         }
 
-        .pnl-positive { color: #3fb950; }
-        .pnl-negative { color: #f85149; }
+        .pnl-positive {
+            color: #3fb950;
+        }
+
+        .pnl-negative {
+            color: #f85149;
+        }
 
         .badge {
             display: inline-block;
@@ -202,7 +220,7 @@
             padding: 2rem;
             color: var(--text-secondary);
         }
-        
+
         .copy-btn {
             background: transparent;
             border: 1px solid var(--border);
@@ -213,21 +231,21 @@
             font-size: 0.8rem;
             transition: all 0.2s;
         }
-        
+
         .copy-btn:hover {
             border-color: var(--accent);
             color: var(--accent);
         }
-
     </style>
 </head>
+
 <body>
     <div class="container">
         <header>
             <h1>Polymarket CopyBot</h1>
             <p class="subtitle">Automated Trading Dashboard</p>
         </header>
-        
+
         <!-- Configured Users -->
         <div class="section-header">
             <h2>Watched Users</h2>
@@ -249,7 +267,7 @@
                 </select>
             </div>
         </div>
-        
+
         <div class="leaderboard-table-container">
             <table id="leaderboard-table">
                 <thead>
@@ -262,22 +280,29 @@
                     </tr>
                 </thead>
                 <tbody id="leaderboard-body">
-                    <tr><td colspan="5" class="loading">Loading leaderboard...</td></tr>
+                    <tr>
+                        <td colspan="5" class="loading">Loading leaderboard...</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
     </div>
 
     <script>
+        let currentMonitoredUsers = new Set();
+
         // --- Conf Users ---
         async function fetchConfiguredUsers() {
             try {
                 const response = await fetch('/api/users');
                 const users = await response.json();
-                
+
+                // Update global set for leaderboard check
+                currentMonitoredUsers = new Set(users.map(u => u.toLowerCase()));
+
                 document.getElementById('users-count').textContent = users.length;
                 const listContainer = document.getElementById('user-list');
-                
+
                 if (users.length === 0) {
                     listContainer.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary);">No users configured in AppConfig.</div>';
                     return;
@@ -297,6 +322,12 @@
                         </div>
                     `;
                 }).join('');
+
+                // Refresh leaderboard to update buttons if it's already loaded
+                if (document.getElementById('leaderboard-body').children.length > 1) { // Simple check if loaded
+                    fetchLeaderboard();
+                }
+
             } catch (error) {
                 console.error('Error fetching users:', error);
                 document.getElementById('user-list').innerHTML = '<div style="color: var(--danger);">Failed to load users.</div>';
@@ -307,7 +338,9 @@
         async function fetchLeaderboard() {
             const timePeriod = document.getElementById('time-period').value;
             const tbody = document.getElementById('leaderboard-body');
-            
+
+            // Don't clear if just refreshing for button update, maybe? 
+            // For now, simple reload is fine.
             tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading ' + timePeriod.toLowerCase() + ' leaderboard...</td></tr>';
 
             try {
@@ -327,6 +360,11 @@
                     const shortAddr = u.proxyWallet ? `${u.proxyWallet.substring(0, 6)}...${u.proxyWallet.substring(u.proxyWallet.length - 4)}` : 'N/A';
                     const fullAddr = u.proxyWallet || '';
 
+                    const isMonitored = fullAddr && currentMonitoredUsers.has(fullAddr.toLowerCase());
+                    const addBtn = isMonitored
+                        ? `<button class="copy-btn" disabled style="opacity: 0.5; color: var(--text-secondary); border-color: transparent;">Added</button>`
+                        : `<button class="copy-btn" onclick="addToWatchlist('${fullAddr}', '${displayName}')" title="Monitor User" style="color: var(--success); border-color: var(--success); margin-left: 4px;">+</button>`;
+
                     return `
                         <tr>
                             <td>
@@ -340,6 +378,7 @@
                             <td class="${pnlClass}" style="text-align: right; font-weight: 600;">${pnlFormatted}</td>
                             <td>
                                 <button class="copy-btn" onclick="copyToClipboard('${fullAddr}')" title="Copy Address">Copy</button>
+                                ${addBtn}
                             </td>
                         </tr>
                     `;
@@ -348,6 +387,26 @@
             } catch (error) {
                 console.error('Error fetching leaderboard:', error);
                 tbody.innerHTML = '<tr><td colspan="5" class="loading" style="color: var(--danger);">Failed to load leaderboard.</td></tr>';
+            }
+        }
+
+        async function addToWatchlist(address, name) {
+            try {
+                const response = await fetch('/api/users', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ address, name })
+                });
+
+                if (response.ok) {
+                    await fetchConfiguredUsers(); // This will trigger global set update and then leaderboard refresh
+                } else {
+                    console.error('Failed to add user');
+                }
+            } catch (error) {
+                console.error('Error adding user:', error);
             }
         }
 
@@ -360,10 +419,12 @@
             });
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            fetchConfiguredUsers();
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Fetch users first so we have the set ready for leaderboard
+            await fetchConfiguredUsers();
             fetchLeaderboard();
         });
     </script>
 </body>
+
 </html>

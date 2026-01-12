@@ -40,9 +40,6 @@ dotnet restore
 Create a `.env` file in the root of the `Polymarket.CopyBot.Console` project (or copy from example if available).
 
 ```bash
-# Traders to copy (addresses)
-USER_ADDRESSES=["0x6a72f61820b26b1fe4d956e17b6dc2a1ea3033ee"]
-
 # Your trading wallet
 PROXY_WALLET=your_polygon_wallet_address
 PRIVATE_KEY=your_private_key_without_0x_prefix
@@ -55,6 +52,9 @@ RPC_URL=https://polygon-mainnet.infura.io/v3/YOUR_PROJECT_ID
 CLOB_HTTP_URL=https://clob.polymarket.com/
 CLOB_WS_URL=wss://ws-subscriptions-clob.polymarket.com/ws
 USDC_CONTRACT_ADDRESS=0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174
+
+# Execution Control
+RUN_TRADE_EXECUTOR=true  # Set to false to run in "Monitor Only" mode
 
 # Strategy Settings
 TRADE_MULTIPLIER=1.0
@@ -84,10 +84,14 @@ Once the bot is running, you can access the **Web Dashboard** at:
 [http://localhost:5000](http://localhost:5000)
 
 **Features:**
-*   **Watched Users**: View the list of users currently configured in your `.env`.
+**Features:**
+*   **Watched Users**: View the list of monitored users.
+    *   **Add Users**: Directly add users to the monitor list from the Leaderboard.
+    *   **Persistent Storage**: Users are saved to the local SQLite database.
 *   **Leaderboard**: View the top 100 Polymarket traders.
     *   Filter by **Day**, **Week**, **Month**, or **All Time**.
     *   View P&L, Volume, and Rank.
+    *   **Monitor**: Click the `+` button to start copying a trader immediately.
     *   Easily copy proxy wallet addresses.
 
 ## Features
