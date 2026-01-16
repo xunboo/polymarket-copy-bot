@@ -92,14 +92,14 @@ Once the bot is running, you can access the **Web Dashboard** at:
     *   **Persistent Storage**: Users are saved to the local SQLite database.
 *   **Leaderboard**: View the top 100 Polymarket traders.
     *   Filter by **Day**, **Week**, **Month**, or **All Time**.
-    *   View P&L, Volume, and Rank.
+    *   View P&L, Volume, WinRate and Rank.
     *   **Monitor**: Click the `+` button to start copying a trader immediately.
     *   Easily copy proxy wallet addresses.
 
 ## Features
 
 -   **Multi-Trader Support**: Track and copy trades from multiple traders simultaneously.
--   **Leaderboard Support**: Show Offical API data and Win Rate.
+-   **Leaderboard Support**: Show Offical API data and Other Statistics Rate.
 -   **Smart Strategies**:
     -   **Percentage**: Copy a % of your balance.
     -   **Fixed**: Copy a fixed USD amount per trade.
