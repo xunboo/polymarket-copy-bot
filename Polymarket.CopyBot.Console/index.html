@@ -275,7 +275,7 @@
                         <th width="60">Rank</th>
                         <th>User</th>
                         <th>Volume</th>
-                        <th style="text-align: right;">P&L</th>
+                        <th style="text-align: right;">P&L(WinRate)</th>
                         <th width="80">Action</th>
                     </tr>
                 </thead>
@@ -356,14 +356,20 @@
                     const pnlClass = u.pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
                     const pnlFormatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(u.pnl);
                     const volFormatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(u.vol);
-                    const displayName = u.userName || u.xUsername || `User ${u.rank}`;
+                    const usernameForLink = u.userName || u.xUsername || '';
+                    const displayName = usernameForLink || `User ${u.rank}`;
+                    const profileLink = usernameForLink ? `https://polymarket.com/@${encodeURIComponent(usernameForLink)}` : '';
+                    const displayNameHtml = usernameForLink
+                        ? `<a href="${profileLink}" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: none;">${displayName}</a>`
+                        : displayName;
+
                     const shortAddr = u.proxyWallet ? `${u.proxyWallet.substring(0, 6)}...${u.proxyWallet.substring(u.proxyWallet.length - 4)}` : 'N/A';
                     const fullAddr = u.proxyWallet || '';
 
                     const isMonitored = fullAddr && currentMonitoredUsers.has(fullAddr.toLowerCase());
                     const addBtn = isMonitored
                         ? `<button class="copy-btn" disabled style="opacity: 0.5; color: var(--text-secondary); border-color: transparent;">Added</button>`
-                        : `<button class="copy-btn" onclick="addToWatchlist('${fullAddr}', '${displayName}')" title="Monitor User" style="color: var(--success); border-color: var(--success); margin-left: 4px;">+</button>`;
+                        : `<button class="copy-btn" onclick="addToWatchlist('${fullAddr}', '${usernameForLink || displayName}')" title="Monitor User" style="color: var(--success); border-color: var(--success); margin-left: 4px;">+</button>`;
 
                     return `
                         <tr>
@@ -371,11 +377,14 @@
                                 <div class="avatar rank-${u.rank}" style="width: 28px; height: 28px; font-size: 0.8rem;">${u.rank}</div>
                             </td>
                             <td>
-                                <div style="font-weight: 500;">${displayName}</div>
+                                <div style="font-weight: 500;">${displayNameHtml}</div>
                                 <div class="address-small">${shortAddr}</div>
                             </td>
                             <td>${volFormatted}</td>
-                            <td class="${pnlClass}" style="text-align: right; font-weight: 600;">${pnlFormatted}</td>
+                            <td class="${pnlClass}" style="text-align: right; font-weight: 600;">
+                                <div>${pnlFormatted}</div>
+                                <div class="address-small" style="margin-top:6px; font-weight:600; color: var(--text-secondary);">${(u.closedPositionsCount && u.closedPositionsCount > 0) ? (u.winPercent + '%') : 'N/A'}</div>
+                            </td>
                             <td>
                                 <button class="copy-btn" onclick="copyToClipboard('${fullAddr}')" title="Copy Address">Copy</button>
                                 ${addBtn}

@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Net.Http; // Add this using directive
+using System.IO;
 using Polymarket.CopyBot.Console.Configuration;
 using Polymarket.CopyBot.Console.Repositories;
 using Polymarket.CopyBot.Console.Services;
@@ -14,6 +15,34 @@ namespace Polymarket.CopyBot.Console
     {
         public static void Main(string[] args)
         {
+            // If the persisted log file grows too large, clear it before starting
+            try
+            {
+                var logPath = Path.Combine(AppContext.BaseDirectory ?? string.Empty, "log.txt");
+                if (!File.Exists(logPath))
+                {
+                    // fall back to current directory
+                    logPath = Path.Combine(Directory.GetCurrentDirectory(), "log.txt");
+                }
+
+                const long maxBytes = 100L * 1024 * 1024; // 100 MB
+                if (File.Exists(logPath))
+                {
+                    var fi = new FileInfo(logPath);
+                    if (fi.Length > maxBytes)
+                    {
+                        // Truncate/clear the file so Serilog can start fresh
+                        File.WriteAllText(logPath, string.Empty);
+                        Log.Debug($"Cleared '{logPath}' because it exceeded {maxBytes} bytes.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Don't crash startup because of log maintenance. Just report to console.
+                Log.Debug($"Warning: could not enforce log size limit: {ex.Message}");
+            }
+
             var host = CreateHostBuilder(args).Build();
             
             using (var scope = host.Services.CreateScope())

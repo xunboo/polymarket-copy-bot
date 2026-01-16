@@ -27,5 +27,15 @@ namespace Polymarket.CopyBot.Console.Models
 
         [JsonPropertyName("verifiedBadge")]
         public bool VerifiedBadge { get; set; }
+
+        // Augmented statistics (computed by the app)
+        [JsonPropertyName("winPercent")]
+        public double WinPercent { get; set; }
+
+        [JsonPropertyName("closedPositionsCount")]
+        public int ClosedPositionsCount { get; set; }
+
+        [JsonPropertyName("winsCount")]
+        public int WinsCount { get; set; }
     }
 }

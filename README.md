@@ -2,6 +2,8 @@
 
 > A high-performance automated copy trading bot for Polymarket, built on **.NET 8**. It mirrors trades from top performers with intelligent position sizing and real-time execution.
 
+![Polymarket CopyBot Dashboard](image.png)
+
 ## Overview
 
 The Polymarket Copy Trading Bot automatically replicates trades from successful Polymarket traders to your wallet. It's built as a **.NET Worker Service** to ensure robust background execution and low-latency performance.
@@ -97,6 +99,7 @@ Once the bot is running, you can access the **Web Dashboard** at:
 ## Features
 
 -   **Multi-Trader Support**: Track and copy trades from multiple traders simultaneously.
+-   **Leaderboard Support**: Show Offical API data and Win Rate.
 -   **Smart Strategies**:
     -   **Percentage**: Copy a % of your balance.
     -   **Fixed**: Copy a fixed USD amount per trade.
