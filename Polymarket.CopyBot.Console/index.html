@@ -275,7 +275,7 @@
                         <th width="60">Rank</th>
                         <th>User</th>
                         <th>Volume</th>
-                        <th style="text-align: right;">P&L(WinRate)</th>
+                        <th style="text-align: right;">P&L (WinRate)</th>
                         <th width="80">Action</th>
                     </tr>
                 </thead>
@@ -387,7 +387,13 @@
                             <td>${volFormatted}</td>
                             <td class="${pnlClass}" style="text-align: right; font-weight: 600;">
                                 <div>${pnlFormatted}</div>
-                                <div class="address-small" style="margin-top:6px; font-weight:600; color: var(--text-secondary);">${(u.closedPositionsCount && u.closedPositionsCount > 0) ? (u.winPercent + '%') : 'N/A'}</div>
+                                <div class="address-small" style="margin-top:6px; font-weight:600; color: var(--text-secondary);">
+                                    ${
+                                        (u.closedPositionsCount && u.closedPositionsCount > 0)
+                                            ? (`${u.winPercent}% (${u.winsCount}/${u.closedPositionsCount})`)
+                                            : 'N/A'
+                                    }
+                                </div>
                             </td>
                             <td>
                                 <button class="copy-btn" onclick="copyToClipboard('${fullAddr}')" title="Copy Address">Copy</button>
