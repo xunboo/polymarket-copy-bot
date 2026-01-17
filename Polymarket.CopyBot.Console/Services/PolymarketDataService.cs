@@ -87,8 +87,11 @@ namespace Polymarket.CopyBot.Console.Services
                     var closedPage1 = await GetClosedPositions<ClosedPosition>(addr, 0, 50);
                     if (closedPage1 != null) closed.AddRange(closedPage1);
 
-                    var closedPage2 = await GetClosedPositions<ClosedPosition>(addr, 50, 50);
-                    if (closedPage2 != null) closed.AddRange(closedPage2);
+                    if (closed.Count == 50)
+                    {
+                        var closedPage2 = await GetClosedPositions<ClosedPosition>(addr, 50, 50);
+                        if (closedPage2 != null) closed.AddRange(closedPage2);
+                    }
 
                     int wins = 0;
                     int total = 0;

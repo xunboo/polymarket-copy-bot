@@ -339,7 +339,7 @@
             const timePeriod = document.getElementById('time-period').value;
             const tbody = document.getElementById('leaderboard-body');
 
-            // Don't clear if just refreshing for button update, maybe? 
+            // Don't clear if just refreshing for button update, maybe?
             // For now, simple reload is fine.
             tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading ' + timePeriod.toLowerCase() + ' leaderboard...</td></tr>';
 
@@ -371,6 +371,10 @@
                         ? `<button class="copy-btn" disabled style="opacity: 0.5; color: var(--text-secondary); border-color: transparent;">Added</button>`
                         : `<button class="copy-btn" onclick="addToWatchlist('${fullAddr}', '${usernameForLink || displayName}')" title="Monitor User" style="color: var(--success); border-color: var(--success); margin-left: 4px;">+</button>`;
 
+                    const removeBtn = isMonitored
+                        ? `<button class="copy-btn" onclick="removeFromWatchlist('${fullAddr}')" title="Remove from Watchlist" style="color: var(--danger); border-color: var(--danger); margin-left: 6px;">-</button>`
+                        : '';
+
                     return `
                         <tr>
                             <td>
@@ -388,6 +392,7 @@
                             <td>
                                 <button class="copy-btn" onclick="copyToClipboard('${fullAddr}')" title="Copy Address">Copy</button>
                                 ${addBtn}
+                                ${removeBtn}
                             </td>
                         </tr>
                     `;
@@ -416,6 +421,25 @@
                 }
             } catch (error) {
                 console.error('Error adding user:', error);
+            }
+        }
+
+        async function removeFromWatchlist(address) {
+            try {
+                const response = await fetch('/api/users', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ address })
+                });
+                if (response.ok) {
+                    await fetchConfiguredUsers(); // This will trigger global set update and then leaderboard refresh
+                } else {
+                    console.error('Failed to remove user');
+                }
+            } catch (error) {
+                console.error('Error removing user:', error);
             }
         }
 

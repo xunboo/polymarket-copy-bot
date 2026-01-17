@@ -6,6 +6,9 @@ using Microsoft.Extensions.Logging;
 using Polymarket.CopyBot.Console.Configuration;
 using Polymarket.CopyBot.Console.Models;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Polymarket.CopyBot.Console.Services
 {
@@ -67,6 +70,32 @@ namespace Polymarket.CopyBot.Console.Services
                         var monitorService = scope.ServiceProvider.GetRequiredService<IMonitorUserService>();
                         await monitorService.AddUserAsync(request.Address, request.Name);
                         return Results.Ok();
+                    }
+                });
+
+                // Allow removal of monitored users via DELETE /api/users
+                _app.MapDelete("/api/users", async ([FromBody] RemoveUserRequest request) =>
+                {
+                    try
+                    {
+                        if (string.IsNullOrWhiteSpace(request.Address)) return Results.BadRequest("Address is required");
+
+                        using (var scope = _scopeFactory.CreateScope())
+                        {
+                            var monitorService = scope.ServiceProvider.GetRequiredService<IMonitorUserService>();
+                            await monitorService.RemoveUserAsync(request.Address);
+                            return Results.Ok();
+                        }
+                    }
+                    catch (JsonException ex)
+                    {
+                        _logger.LogError(ex, "Failed to deserialize RemoveUserRequest from DELETE /api/users");
+                        return Results.BadRequest("Invalid request body format.");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error processing DELETE /api/users request");
+                        return Results.Problem("An unexpected error occurred.");
                     }
                 });
 
@@ -138,7 +167,15 @@ namespace Polymarket.CopyBot.Console.Services
 
     public class AddUserRequest
     {
+        [JsonPropertyName("address")]
         public string Address { get; set; } = string.Empty;
+        [JsonPropertyName("name")]
         public string? Name { get; set; }
+    }
+
+    public class RemoveUserRequest
+    {
+        [JsonPropertyName("address")]
+        public string Address { get; set; } = string.Empty;
     }
 }
