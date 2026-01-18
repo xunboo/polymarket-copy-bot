@@ -129,6 +129,31 @@ namespace Polymarket.CopyBot.Console.Services
                     return Results.Json(users);
                 });
 
+                _app.MapGet("/api/user/stats", async (string address) =>
+                {
+                    if (string.IsNullOrWhiteSpace(address)) return Results.BadRequest("Address is required");
+
+                    // Cache stats for 2 minutes to avoid hammering the API if checking frequently
+                    string cacheKey = $"stats_{address.ToLower()}";
+                    if (!_cache.TryGetValue(cacheKey, out LeaderboardUser? stats))
+                    {
+                        try
+                        {
+                            stats = await _dataService.GetUserStatsAsync(address);
+                            var cacheEntryOptions = new MemoryCacheEntryOptions()
+                                .SetAbsoluteExpiration(TimeSpan.FromMinutes(2));
+                            _cache.Set(cacheKey, stats, cacheEntryOptions);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to fetch stats for {Address}", address);
+                            return Results.Problem("Failed to fetch user stats");
+                        }
+                    }
+
+                    return Results.Json(stats);
+                });
+
                 _app.MapGet("/", async (HttpContext context) =>
                 {
                     context.Response.ContentType = "text/html";

@@ -11,6 +11,7 @@ namespace Polymarket.CopyBot.Console.Services
         Task<List<T>> GetPositions<T>(string userAddress);
         Task<List<T>> GetClosedPositions<T>(string userAddress, int offset = 0, int limit = 50);
         Task<List<Polymarket.CopyBot.Console.Models.LeaderboardUser>> GetLeaderboardAsync(string timePeriod = "MONTH");
+        Task<Polymarket.CopyBot.Console.Models.LeaderboardUser> GetUserStatsAsync(string userAddress); // New method
     }
 
     public class PolymarketDataService : IPolymarketDataService
@@ -68,55 +69,54 @@ namespace Polymarket.CopyBot.Console.Services
             var page2 = await FetchData<List<Polymarket.CopyBot.Console.Models.LeaderboardUser>>($"v1/leaderboard?limit=50&offset=50&timePeriod={timePeriod}");
             if (page2 != null) allUsers.AddRange(page2);
 
-            // For each leaderboard user, fetch up to 100 most recent closed positions (offset 0 and 50)
-            foreach (var user in allUsers)
+            // Return immediately without fetching closed positions for each user
+            return allUsers;
+        }
+
+        public async Task<Polymarket.CopyBot.Console.Models.LeaderboardUser> GetUserStatsAsync(string userAddress)
+        {
+            var stats = new Polymarket.CopyBot.Console.Models.LeaderboardUser 
+            { 
+                ProxyWallet = userAddress 
+            };
+
+            if (string.IsNullOrWhiteSpace(userAddress))
+                return stats;
+
+            try
             {
-                try
+                var closed = new List<ClosedPosition>();
+
+                // Fetch most recent 100 closed positions
+                var closedPage1 = await GetClosedPositions<ClosedPosition>(userAddress, 0, 50);
+                if (closedPage1 != null) closed.AddRange(closedPage1);
+
+                if (closed.Count == 50)
                 {
-                    var addr = user.ProxyWallet;
-                    if (string.IsNullOrWhiteSpace(addr))
-                    {
-                        user.WinPercent = 0;
-                        user.ClosedPositionsCount = 0;
-                        user.WinsCount = 0;
-                        continue;
-                    }
-
-                    var closed = new List<ClosedPosition>();
-
-                    var closedPage1 = await GetClosedPositions<ClosedPosition>(addr, 0, 50);
-                    if (closedPage1 != null) closed.AddRange(closedPage1);
-
-                    if (closed.Count == 50)
-                    {
-                        var closedPage2 = await GetClosedPositions<ClosedPosition>(addr, 50, 50);
-                        if (closedPage2 != null) closed.AddRange(closedPage2);
-                    }
-
-                    int wins = 0;
-                    int total = 0;
-
-                    foreach (var pos in closed)
-                    {
-                        if (pos?.RealizedPnl == null) continue;
-                        total++;
-                        if (pos.RealizedPnl >= 0) wins++;
-                    }
-
-                    user.ClosedPositionsCount = total;
-                    user.WinsCount = wins;
-                    user.WinPercent = total == 0 ? 0 : Math.Round((double)wins / total * 100.0, 2);
+                    var closedPage2 = await GetClosedPositions<ClosedPosition>(userAddress, 50, 50);
+                    if (closedPage2 != null) closed.AddRange(closedPage2);
                 }
-                catch (Exception ex)
+
+                int wins = 0;
+                int total = 0;
+
+                foreach (var pos in closed)
                 {
-                    _logger.LogWarning(ex, "Failed to fetch closed positions for user {User}", user.ProxyWallet);
-                    user.WinPercent = 0;
-                    user.ClosedPositionsCount = 0;
-                    user.WinsCount = 0;
+                    if (pos?.RealizedPnl == null) continue;
+                    total++;
+                    if (pos.RealizedPnl >= 0) wins++;
                 }
+
+                stats.ClosedPositionsCount = total;
+                stats.WinsCount = wins;
+                stats.WinPercent = total == 0 ? 0 : Math.Round((double)wins / total * 100.0, 2);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch closed positions for user {User}", userAddress);
             }
 
-            return allUsers;
+            return stats;
         }
 
         private async Task<TResult> FetchData<TResult>(string endpoint) where TResult : new()

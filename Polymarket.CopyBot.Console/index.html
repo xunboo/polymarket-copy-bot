@@ -335,12 +335,11 @@
         }
 
         // --- Leaderboard ---
+        // --- Leaderboard ---
         async function fetchLeaderboard() {
             const timePeriod = document.getElementById('time-period').value;
             const tbody = document.getElementById('leaderboard-body');
 
-            // Don't clear if just refreshing for button update, maybe?
-            // For now, simple reload is fine.
             tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading ' + timePeriod.toLowerCase() + ' leaderboard...</td></tr>';
 
             try {
@@ -375,6 +374,9 @@
                         ? `<button class="copy-btn" onclick="removeFromWatchlist('${fullAddr}')" title="Remove from Watchlist" style="color: var(--danger); border-color: var(--danger); margin-left: 6px;">-</button>`
                         : '';
 
+                    // Unique ID for the stats container so we can update it later
+                    const statsId = `stats-${u.rank}`;
+
                     return `
                         <tr>
                             <td>
@@ -387,12 +389,8 @@
                             <td>${volFormatted}</td>
                             <td class="${pnlClass}" style="text-align: right; font-weight: 600;">
                                 <div>${pnlFormatted}</div>
-                                <div class="address-small" style="margin-top:6px; font-weight:600; color: var(--text-secondary);">
-                                    ${
-                                        (u.closedPositionsCount && u.closedPositionsCount > 0)
-                                            ? (`${u.winPercent}% (${u.winsCount}/${u.closedPositionsCount})`)
-                                            : 'N/A'
-                                    }
+                                <div id="${statsId}" class="address-small" style="margin-top:6px; font-weight:600; color: var(--text-secondary);">
+                                    <span style="opacity:0.5;">Loading stats...</span>
                                 </div>
                             </td>
                             <td>
@@ -404,9 +402,39 @@
                     `;
                 }).join('');
 
+                // Now fetch stats for each user asynchronously
+                // We do this in chunks or just fire them all? Fire carefully to avoid browser limit issues if many.
+                // But browser handles queueing. Let's iterate.
+                for (const u of users) {
+                    fetchUserStats(u.proxyWallet, u.rank);
+                }
+
             } catch (error) {
                 console.error('Error fetching leaderboard:', error);
                 tbody.innerHTML = '<tr><td colspan="5" class="loading" style="color: var(--danger);">Failed to load leaderboard.</td></tr>';
+            }
+        }
+
+        async function fetchUserStats(address, rank) {
+            if (!address) return;
+            const elementId = `stats-${rank}`;
+            const element = document.getElementById(elementId);
+            if (!element) return;
+
+            try {
+                const response = await fetch(`/api/user/stats?address=${address}`);
+                if (!response.ok) return;
+
+                const stats = await response.json();
+
+                if (stats.closedPositionsCount > 0) {
+                    element.innerHTML = `${stats.winPercent}% (${stats.winsCount}/${stats.closedPositionsCount})`;
+                } else {
+                    element.innerHTML = 'N/A';
+                }
+            } catch (err) {
+                console.error(`Failed to load stats for ${address}`, err);
+                element.innerHTML = '<span style="color:var(--danger)">Err</span>';
             }
         }
 
