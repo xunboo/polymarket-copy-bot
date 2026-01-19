@@ -13,6 +13,9 @@ namespace Polymarket.CopyBot.Console.Models
         [JsonPropertyName("timestamp")]
         public long? Timestamp { get; set; }
 
+        [JsonPropertyName("eventSlug")]
+        public string? EventSlug { get; set; }
+
         // other fields omitted - only realizedPnl is used for stats
     }
 }

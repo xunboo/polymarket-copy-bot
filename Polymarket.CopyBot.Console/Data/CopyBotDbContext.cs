@@ -9,8 +9,7 @@ namespace Polymarket.CopyBot.Console.Data
         public DbSet<UserActivity> UserActivities { get; set; }
         public DbSet<UserPosition> UserPositions { get; set; }
         public DbSet<MonitorUser> MonitorUsers { get; set; }
-
-
+        public DbSet<UserClosedPosInfo> UserClosedPosInfos { get; set; }
 
         // Constructor for DI
         public CopyBotDbContext(DbContextOptions<CopyBotDbContext> options)
@@ -18,8 +17,6 @@ namespace Polymarket.CopyBot.Console.Data
         {
         }
 
-
-        
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -33,6 +30,13 @@ namespace Polymarket.CopyBot.Console.Data
 
             modelBuilder.Entity<UserPosition>()
                 .HasIndex(u => u.OwnerAddress);
+
+            modelBuilder.Entity<UserClosedPosInfo>()
+                .HasIndex(u => u.UserAddress);
+            
+            // Indexing Timestamp for sync logic
+            modelBuilder.Entity<UserClosedPosInfo>()
+                .HasIndex(u => u.Timestamp);
         }
     }
 }

@@ -57,6 +57,21 @@ namespace Polymarket.CopyBot.Console
                         ""Name"" TEXT NULL,
                         ""CreatedAt"" TEXT NOT NULL
                     );");
+
+                // Manual migration for UserClosedPosInfos
+                db.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS ""UserClosedPosInfos"" (
+                        ""Id"" TEXT NOT NULL CONSTRAINT ""PK_UserClosedPosInfos"" PRIMARY KEY,
+                        ""UserAddress"" TEXT NULL,
+                        ""PositionId"" TEXT NULL,
+                        ""Timestamp"" INTEGER NULL,
+                        ""EventSlug"" TEXT NULL,
+                        ""RealizedPnl"" REAL NULL,
+                        ""Title"" TEXT NULL
+                    );");
+                
+                db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_UserClosedPosInfos_UserAddress"" ON ""UserClosedPosInfos"" (""UserAddress"");");
+                db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_UserClosedPosInfos_Timestamp"" ON ""UserClosedPosInfos"" (""Timestamp"");");
             }
 
             host.Run();
@@ -97,6 +112,7 @@ namespace Polymarket.CopyBot.Console
                     // Services
                     services.AddHttpClient<PolymarketDataService>();
                     services.AddSingleton<IPolymarketDataService, PolymarketDataService>();
+                    services.AddScoped<IUserStatsService, UserStatsService>();
                     
                     services.AddSingleton<CopyStrategyService>();
 

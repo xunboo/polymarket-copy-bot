@@ -47,7 +47,6 @@ namespace Polymarket.CopyBot.Console.Services
 
             if (limit <= 0) limit = 50;
 
-            //var encodedUser = Uri.EscapeDataString(userAddress);
             var endpoint = $"v1/closed-positions?limit={limit}&sortBy=TIMESTAMP&sortDirection=DESC&user={userAddress}&offset={offset}";
 
             return await FetchData<List<T>>(endpoint);
@@ -87,14 +86,16 @@ namespace Polymarket.CopyBot.Console.Services
             {
                 var closed = new List<ClosedPosition>();
 
-                // Fetch most recent 100 closed positions
-                var closedPage1 = await GetClosedPositions<ClosedPosition>(userAddress, 0, 50);
-                if (closedPage1 != null) closed.AddRange(closedPage1);
-
-                if (closed.Count == 50)
+                // Fetch closed positions in pages of 50 until fewer than pageSize are returned
+                const int pageSize = 50;
+                var offset = 0;
+                while (true)
                 {
-                    var closedPage2 = await GetClosedPositions<ClosedPosition>(userAddress, 50, 50);
-                    if (closedPage2 != null) closed.AddRange(closedPage2);
+                    var page = await GetClosedPositions<ClosedPosition>(userAddress, offset, pageSize);
+                    if (page == null || page.Count == 0) break;
+                    closed.AddRange(page);
+                    if (page.Count < pageSize || closed.Count >= 500) break;
+                    offset += pageSize;
                 }
 
                 int wins = 0;

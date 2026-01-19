@@ -133,13 +133,18 @@ namespace Polymarket.CopyBot.Console.Services
                 {
                     if (string.IsNullOrWhiteSpace(address)) return Results.BadRequest("Address is required");
 
-                    // Cache stats for 2 minutes to avoid hammering the API if checking frequently
+                    // Cache stats for 2 minutes to serve really fast repeated requests
                     string cacheKey = $"stats_{address.ToLower()}";
                     if (!_cache.TryGetValue(cacheKey, out LeaderboardUser? stats))
                     {
                         try
                         {
-                            stats = await _dataService.GetUserStatsAsync(address);
+                            using (var scope = _scopeFactory.CreateScope())
+                            {
+                                var statsService = scope.ServiceProvider.GetRequiredService<IUserStatsService>();
+                                stats = await statsService.GetUserStatsAsync(address);
+                            }
+                            
                             var cacheEntryOptions = new MemoryCacheEntryOptions()
                                 .SetAbsoluteExpiration(TimeSpan.FromMinutes(2));
                             _cache.Set(cacheKey, stats, cacheEntryOptions);
