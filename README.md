@@ -14,7 +14,7 @@ The Polymarket Copy Trading Bot automatically replicates trades from successful 
 2.  **Monitor Activity** - The bot polls the Polymarket Data API to detect new positions from selected traders.
 3.  **Calculate Size** - Automatically scales trades based on your configured strategy (Percentage, Fixed, or Adaptive).
 4.  **Execute Orders** - Places matching orders on the Polymarket CLOB (Central Limit Order Book) using your wallet.
-5.  **Track Performance** - Maintains trade history and position tracking in MongoDB.
+5.  **Track Performance** - Maintains trade history and position tracking in SQLite.
 
 ## Quick Start
 
@@ -89,6 +89,7 @@ Once the bot is running, you can access the **Web Dashboard** at:
 **Features:**
 *   **Watched Users**: View the list of monitored users.
     *   **Add Users**: Directly add users to the monitor list from the Leaderboard.
+    *   **Activity Log**: See recent trades copied for each user.
     *   **Persistent Storage**: Users are saved to the local SQLite database.
 *   **Leaderboard**: View the top 100 Polymarket traders.
     *   Filter by **Day**, **Week**, **Month**, or **All Time**.
