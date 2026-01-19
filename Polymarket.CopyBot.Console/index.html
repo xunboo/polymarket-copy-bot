@@ -236,6 +236,43 @@
             border-color: var(--accent);
             color: var(--accent);
         }
+
+        /* Highlight row when focusing from watched users */
+        .highlight-row {
+            box-shadow: inset 6px 0 0 0 rgba(88,166,255,0.25);
+            transition: box-shadow 0.3s ease, background-color 0.3s ease;
+            background-color: rgba(88,166,255,0.04);
+        }
+
+        /* Activity popup */
+        .activity-popup {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            width: 320px;
+            max-height: 60vh;
+            overflow: auto;
+            background: linear-gradient(180deg, rgba(22,27,34,0.98), rgba(22,27,34,0.95));
+            border: 1px solid var(--border);
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(2,6,23,0.6);
+            z-index: 9999;
+        }
+
+        .activity-popup h3 {
+            margin: 0 0 8px 0;
+            font-size: 1rem;
+            color: var(--text-secondary);
+        }
+
+        .activity-item {
+            padding: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.02);
+        }
+
+        .activity-item .title { font-weight: 600; }
+        .activity-item .meta { font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px; }
     </style>
 </head>
 
@@ -251,6 +288,13 @@
             <h2>Watched Users</h2>
             <span id="users-count" class="badge">0</span>
         </div>
+
+        <!-- Activity popup -->
+        <div id="activity-popup" class="activity-popup" style="display:none;">
+            <h3 id="activity-popup-title">Recent Activity</h3>
+            <div id="activity-popup-list"></div>
+        </div>
+
         <div id="user-list" class="user-grid">
             <div class="loading">Loading configured users...</div>
         </div>
@@ -291,6 +335,102 @@
     <script>
         let currentMonitoredUsers = new Set();
 
+        // Activity popup & helpers (global scope)
+        async function showActivityPopup(address) {
+            const popup = document.getElementById('activity-popup');
+            const list = document.getElementById('activity-popup-list');
+            const title = document.getElementById('activity-popup-title');
+            if (!popup || !list || !title) return;
+
+            title.textContent = `Recent Activity: ${address.substring(0,6)}...${address.substring(address.length-4)}`;
+            list.innerHTML = '<div class="loading">Loading activities...</div>';
+            popup.style.display = 'block';
+
+            try {
+                const resp = await fetch(`/api/user/activity?address=${encodeURIComponent(address)}`);
+                if (!resp.ok) {
+                    list.innerHTML = '<div style="color:var(--danger)">Failed to load</div>';
+                    return;
+                }
+                const activities = await resp.json();
+                if (!activities || activities.length === 0) {
+                    list.innerHTML = '<div class="loading">No recent activity.</div>';
+                    return;
+                }
+
+                list.innerHTML = activities.map(a => {
+                    const t = a.title || '';
+                    const s = a.slug || '';
+                    const side = a.side || '';
+                    return `<div class="activity-item"><div class="title">${escapeHtml(t)}</div><div class="meta">${escapeHtml(s)} · ${escapeHtml(side)}</div></div>`;
+                }).join('');
+            } catch (err) {
+                console.error('Failed to load activity', err);
+                list.innerHTML = '<div style="color:var(--danger)">Err</div>';
+            }
+        }
+
+        function hideActivityPopup() {
+            const popup = document.getElementById('activity-popup');
+            if (popup) popup.style.display = 'none';
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>"'`]/g, function (s) {
+                return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' })[s];
+            });
+        }
+
+        function attachUserCardDelegation() {
+            const container = document.getElementById('user-list');
+            if (!container) return;
+
+            // Prevent attaching multiple times
+            if (container.__cardDelegationAttached) return;
+            container.__cardDelegationAttached = true;
+
+            let clickTimer = null;
+            let lastAddress = null;
+
+            const findCard = (start) => {
+                let node = start;
+                while (node && node !== container) {
+                    if (node.classList && node.classList.contains && node.classList.contains('user-card')) return node;
+                    node = node.parentNode;
+                }
+                return null;
+            };
+
+            container.addEventListener('click', (e) => {
+                const card = findCard(e.target);
+                if (!card) return;
+                const address = card.getAttribute('data-address');
+                if (!address) return;
+
+                // Start single-click timer; will be cleared on dblclick
+                if (clickTimer) clearTimeout(clickTimer);
+                lastAddress = address;
+                clickTimer = setTimeout(() => {
+                    clickTimer = null;
+                    if (lastAddress) showActivityPopup(lastAddress);
+                    lastAddress = null;
+                }, 250);
+            });
+
+            container.addEventListener('dblclick', (e) => {
+                const card = findCard(e.target);
+                if (!card) return;
+                const address = card.getAttribute('data-address');
+                if (!address) return;
+
+                // Cancel pending single click
+                if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+                lastAddress = null;
+                focusLeaderboardUser(address);
+            });
+        }
+
         // --- Conf Users ---
         async function fetchConfiguredUsers() {
             try {
@@ -308,10 +448,58 @@
                     return;
                 }
 
+                // Single/double click handling is implemented via event delegation below
+
+                async function showActivityPopup(address) {
+                    const popup = document.getElementById('activity-popup');
+                    const list = document.getElementById('activity-popup-list');
+                    const title = document.getElementById('activity-popup-title');
+                    if (!popup || !list || !title) return;
+
+                    title.textContent = `Recent Activity: ${address.substring(0,6)}...${address.substring(address.length-4)}`;
+                    list.innerHTML = '<div class="loading">Loading activities...</div>';
+                    popup.style.display = 'block';
+
+                    try {
+                        const resp = await fetch(`/api/user/activity?address=${encodeURIComponent(address)}`);
+                        if (!resp.ok) {
+                            list.innerHTML = '<div style="color:var(--danger)">Failed to load</div>';
+                            return;
+                        }
+                        const activities = await resp.json();
+                        if (!activities || activities.length === 0) {
+                            list.innerHTML = '<div class="loading">No recent activity.</div>';
+                            return;
+                        }
+
+                        list.innerHTML = activities.map(a => {
+                            const t = a.title || '';
+                            const s = a.slug || '';
+                            const side = a.side || '';
+                            return `<div class="activity-item"><div class="title">${escapeHtml(t)}</div><div class="meta">${escapeHtml(s)} · ${escapeHtml(side)}</div></div>`;
+                        }).join('');
+                    } catch (err) {
+                        console.error('Failed to load activity', err);
+                        list.innerHTML = '<div style="color:var(--danger)">Err</div>';
+                    }
+                }
+
+                function hideActivityPopup() {
+                    const popup = document.getElementById('activity-popup');
+                    if (popup) popup.style.display = 'none';
+                }
+
+                function escapeHtml(str) {
+                    if (!str) return '';
+                    return String(str).replace(/[&<>"'`]/g, function (s) {
+                        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' })[s];
+                    });
+                }
+
                 listContainer.innerHTML = users.map((user, index) => {
                     const shortAddress = user.length > 10 ? `${user.substring(0, 6)}...${user.substring(user.length - 4)}` : user;
                     return `
-                        <div class="user-card">
+                        <div class="user-card" data-address="${user.toLowerCase()}" style="cursor: pointer;">
                             <div class="user-info">
                                 <div class="avatar">${index + 1}</div>
                                 <div>
@@ -328,9 +516,60 @@
                     fetchLeaderboard();
                 }
 
+                // Attach event delegation handlers for user card clicks
+                attachUserCardDelegation();
+
             } catch (error) {
                 console.error('Error fetching users:', error);
                 document.getElementById('user-list').innerHTML = '<div style="color: var(--danger);">Failed to load users.</div>';
+            }
+
+            function attachUserCardDelegation() {
+                const container = document.getElementById('user-list');
+                if (!container) return;
+                // Prevent attaching multiple times
+                if (container.__cardDelegationAttached) return;
+                container.__cardDelegationAttached = true;
+
+                let clickTimer = null;
+                let lastAddress = null;
+
+                const findCard = (start) => {
+                    let node = start;
+                    while (node && node !== container) {
+                        if (node.classList && node.classList.contains && node.classList.contains('user-card')) return node;
+                        node = node.parentNode;
+                    }
+                    return null;
+                };
+
+                container.addEventListener('click', (e) => {
+                    const card = findCard(e.target);
+                    if (!card) return;
+                    const address = card.getAttribute('data-address');
+                    if (!address) return;
+
+                    // Start single-click timer; will be cleared on dblclick
+                    if (clickTimer) clearTimeout(clickTimer);
+                    lastAddress = address;
+                    clickTimer = setTimeout(() => {
+                        clickTimer = null;
+                        if (lastAddress) showActivityPopup(lastAddress);
+                        lastAddress = null;
+                    }, 250);
+                });
+
+                container.addEventListener('dblclick', (e) => {
+                    const card = findCard(e.target);
+                    if (!card) return;
+                    const address = card.getAttribute('data-address');
+                    if (!address) return;
+
+                    // Cancel pending single click
+                    if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+                    lastAddress = null;
+                    focusLeaderboardUser(address);
+                });
             }
         }
 
@@ -378,7 +617,7 @@
                     const statsId = `stats-${u.rank}`;
 
                     return `
-                        <tr>
+                        <tr data-address="${fullAddr ? fullAddr.toLowerCase() : ''}">
                             <td>
                                 <div class="avatar rank-${u.rank}" style="width: 28px; height: 28px; font-size: 0.8rem;">${u.rank}</div>
                             </td>
@@ -409,10 +648,51 @@
                     fetchUserStats(u.proxyWallet, u.rank);
                 }
 
+                // If a pending focus target exists (set by dblclick), try to focus it now
+                if (window.__pendingFocusAddress) {
+                    // clear and call focus
+                    const addr = window.__pendingFocusAddress;
+                    window.__pendingFocusAddress = null;
+                    focusLeaderboardUser(addr);
+                }
+
             } catch (error) {
                 console.error('Error fetching leaderboard:', error);
                 tbody.innerHTML = '<tr><td colspan="5" class="loading" style="color: var(--danger);">Failed to load leaderboard.</td></tr>';
             }
+        }
+
+        // Focus a user in the leaderboard by address (lowercase expected)
+        async function focusLeaderboardUser(address) {
+            if (!address) return;
+            // Ensure leaderboard is loaded; if not, set a pending focus and trigger fetch
+            const tbody = document.getElementById('leaderboard-body');
+            if (!tbody || tbody.children.length === 0 || tbody.querySelector('.loading')) {
+                // set pending and refresh leaderboard
+                window.__pendingFocusAddress = address;
+                fetchLeaderboard();
+                return;
+            }
+
+            // Find the row with matching data-address
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const target = rows.find(r => (r.getAttribute('data-address') || '').toLowerCase() === address.toLowerCase());
+
+            if (!target) {
+                // If not found, try refreshing leaderboard once more in case of pagination or timing
+                window.__pendingFocusAddress = address;
+                fetchLeaderboard();
+                return;
+            }
+
+            // Scroll the row into view (page-level) so user sees it
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // Add highlight class then remove after a short delay
+            target.classList.add('highlight-row');
+            setTimeout(() => {
+                target.classList.remove('highlight-row');
+            }, 3000);
         }
 
         async function fetchUserStats(address, rank) {
@@ -485,6 +765,22 @@
                 console.error('Failed to copy: ', err);
             });
         }
+
+        // Hide activity popup when clicking outside of it (but don't hide when clicking a user card)
+        document.addEventListener('click', (e) => {
+            const popup = document.getElementById('activity-popup');
+            if (!popup) return;
+
+            // If popup is not visible, nothing to do
+            if (popup.style.display === 'none' || popup.style.display === '') return;
+
+            // If click is inside popup or on a user-card, don't hide
+            const isInsidePopup = popup.contains(e.target);
+            const clickedUserCard = e.target.closest && e.target.closest('.user-card');
+            if (!isInsidePopup && !clickedUserCard) {
+                hideActivityPopup();
+            }
+        });
 
         document.addEventListener('DOMContentLoaded', async () => {
             // Fetch users first so we have the set ready for leaderboard

@@ -61,6 +61,37 @@ namespace Polymarket.CopyBot.Console.Services
                     }
                 });
 
+                _app.MapGet("/api/user/activity", async (string address) =>
+                {
+                    if (string.IsNullOrWhiteSpace(address)) return Results.BadRequest("Address is required");
+
+                    string cacheKey = $"activity_{address.ToLower()}";
+                    if (!_cache.TryGetValue(cacheKey, out List<object>? activities))
+                    {
+                        try
+                        {
+                            // Use data service to fetch recent activity and project to minimal fields
+                            var raw = await _dataService.GetActivity<Polymarket.CopyBot.Console.Models.UserActivity>(address);
+                            activities = raw?.Select(a => new {
+                                title = a.Title ?? string.Empty,
+                                slug = a.Slug ?? string.Empty,
+                                side = a.Side ?? string.Empty
+                            }).Cast<object>().ToList() ?? new List<object>();
+
+                            var cacheEntryOptions = new MemoryCacheEntryOptions()
+                                .SetAbsoluteExpiration(TimeSpan.FromSeconds(30));
+                            _cache.Set(cacheKey, activities, cacheEntryOptions);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to fetch activity for {Address}", address);
+                            return Results.Problem("Failed to fetch user activity");
+                        }
+                    }
+
+                    return Results.Json(activities);
+                });
+
                 _app.MapPost("/api/users", async (AddUserRequest request) =>
                 {
                     if (string.IsNullOrWhiteSpace(request.Address)) return Results.BadRequest("Address is required");

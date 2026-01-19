@@ -7,7 +7,7 @@ namespace Polymarket.CopyBot.Console.Services
 {
     public interface IPolymarketDataService
     {
-        Task<List<T>> GetActivity<T>(string userAddress, string type = "TRADE");
+        Task<List<T>> GetActivity<T>(string userAddress, string type = "TRADE", int limit = 100);
         Task<List<T>> GetPositions<T>(string userAddress);
         Task<List<T>> GetClosedPositions<T>(string userAddress, int offset = 0, int limit = 50);
         Task<List<Polymarket.CopyBot.Console.Models.LeaderboardUser>> GetLeaderboardAsync(string timePeriod = "MONTH");
@@ -31,9 +31,9 @@ namespace Polymarket.CopyBot.Console.Services
             _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
         }
 
-        public async Task<List<T>> GetActivity<T>(string userAddress, string type = "TRADE")
+        public async Task<List<T>> GetActivity<T>(string userAddress, string type = "TRADE", int limit = 100)
         {
-            return await FetchData<List<T>>($"activity?user={userAddress}&type={type}");
+            return await FetchData<List<T>>($"activity?limit={limit}&user={userAddress}&type={type}&sortBy=TIMESTAMP&sortDirection=DESC");
         }
 
         public async Task<List<T>> GetPositions<T>(string userAddress)
